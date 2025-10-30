@@ -35,7 +35,11 @@ async function createInvoice({ amount, asset = 'USDT', description, payload, exp
     allow_comments: false,
     allow_anonymous: false,
   });
-  // result contains invoice_url, invoice_id, status
+  // normalize URL field
+  if (result && !result.invoice_url && result.pay_url) {
+    result.invoice_url = result.pay_url;
+  }
+  // result contains invoice_url|pay_url, invoice_id, status
   return result;
 }
 
@@ -51,4 +55,3 @@ function verifyWebhookSignature(rawBody, headerValue) {
 }
 
 module.exports = { isConfigured, createInvoice, verifyWebhookSignature };
-

@@ -23,8 +23,7 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(expressLayouts);
 app.set('layout', 'layout');
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+// Note: register raw-body webhooks BEFORE JSON parser to preserve signatures
 app.use('/static', express.static(path.join(__dirname, 'public')));
 
 app.use(
@@ -47,6 +46,10 @@ app.use(async (req, res, next) => {
   }
   next();
 });
+
+// Body parsers registered after webhooks so raw signature verification works
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 app.get('/healthz', (req, res) => {
   res.json({ ok: true });
@@ -111,9 +114,9 @@ app.post('/buy', async (req, res) => {
         payload: String(orderId),
       });
       await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
-        'cryptopay', invoice.invoice_id, invoice.invoice_url, invoice.status || 'created', orderId,
+        'cryptopay', invoice.invoice_id, (invoice.invoice_url || invoice.pay_url || null), invoice.status || 'created', orderId,
       ]);
-      return res.redirect(invoice.invoice_url);
+      return res.redirect(invoice.invoice_url || invoice.pay_url);
     }
   } catch (e) {
     console.error('Failed to create payment', e.message || e);
@@ -200,7 +203,7 @@ app.post('/webhooks/coinbase', express.raw({ type: 'application/json' }), async 
 
 // CryptoPay webhook
 app.post('/webhooks/cryptopay', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['x-api-signature'] || req.headers['x-signature'];
+  const sig = req.headers['crypto-pay-signature'] || req.headers['x-api-signature'] || req.headers['x-signature'];
   const raw = req.body instanceof Buffer ? req.body.toString('utf8') : req.body;
   try {
     if (!cpVerifySig(raw, sig)) return res.status(400).send('invalid signature');
