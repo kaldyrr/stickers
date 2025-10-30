@@ -105,7 +105,8 @@ app.post('/buy', async (req, res) => {
       await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
         'coinbase', charge.id, charge.hosted_url, charge.timeline?.[charge.timeline.length - 1]?.status || 'created', orderId,
       ]);
-      return res.redirect(charge.hosted_url);
+      res.set('Cache-Control', 'no-store');
+      return res.redirect(303, charge.hosted_url);
     } else if (cpIsConfigured()) {
       const invoice = await cpCreateInvoice({
         asset: 'USDT',
@@ -116,12 +117,21 @@ app.post('/buy', async (req, res) => {
       await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
         'cryptopay', invoice.invoice_id, (invoice.invoice_url || invoice.pay_url || null), invoice.status || 'created', orderId,
       ]);
-      return res.redirect(invoice.invoice_url || invoice.pay_url);
+      const url = invoice.invoice_url || invoice.pay_url;
+      if (url) {
+        res.set('Cache-Control', 'no-store');
+        return res.redirect(303, url);
+      }
     }
   } catch (e) {
     console.error('Failed to create payment', e.message || e);
   }
-  res.redirect(`/order/${orderId}`);
+  // Fallback HTML to avoid "undefined" navigations in some browsers
+  res.set('Cache-Control', 'no-store');
+  res.status(200).send(
+    `<!doctype html><meta http-equiv="refresh" content="0; url=/order/${orderId}">` +
+    `<p>Redirecting to <a href="/order/${orderId}">order #${orderId}</a>…</p>`
+  );
 });
 
 app.get('/order/:id', async (req, res) => {
@@ -142,22 +152,37 @@ app.get('/order/:id/pay', async (req, res) => {
   const o = await query('SELECT o.*, p.name, p.description, p.price_cents FROM orders o JOIN sticker_packs p ON p.id=o.sticker_pack_id WHERE o.id=$1', [id]);
   if (!o.rowCount) return res.status(404).send('Not found');
   const order = o.rows[0];
-  if (order.provider_hosted_url) return res.redirect(order.provider_hosted_url);
+  if (order.provider_hosted_url) return res.redirect(303, order.provider_hosted_url);
   try {
-    if (!process.env.COINBASE_COMMERCE_API_KEY) return res.redirect(`/order/${id}`);
-    const charge = await createCharge({
-      name: order.name,
-      description: (order.description || '').slice(0, 120),
-      amountUsd: order.price_cents / 100,
-      metadata: { order_id: id },
-    });
-    await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
-      'coinbase', charge.id, charge.hosted_url, charge.timeline?.[charge.timeline.length - 1]?.status || 'created', id,
-    ]);
-    return res.redirect(charge.hosted_url);
+    if (process.env.COINBASE_COMMERCE_API_KEY) {
+      const charge = await createCharge({
+        name: order.name,
+        description: (order.description || '').slice(0, 120),
+        amountUsd: order.price_cents / 100,
+        metadata: { order_id: id },
+      });
+      await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
+        'coinbase', charge.id, charge.hosted_url, charge.timeline?.[charge.timeline.length - 1]?.status || 'created', id,
+      ]);
+      return res.redirect(303, charge.hosted_url);
+    } else if (cpIsConfigured()) {
+      const invoice = await cpCreateInvoice({
+        asset: 'USDT',
+        amount: (order.price_cents / 100).toFixed(2),
+        description: order.name,
+        payload: String(id),
+      });
+      await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
+        'cryptopay', invoice.invoice_id, (invoice.invoice_url || invoice.pay_url || null), invoice.status || 'created', id,
+      ]);
+      const url = invoice.invoice_url || invoice.pay_url;
+      if (url) return res.redirect(303, url);
+    }
   } catch (e) {
-    return res.redirect(`/order/${id}`);
+    // ignore
   }
+  res.set('Cache-Control', 'no-store');
+  return res.redirect(`/order/${id}`);
 });
 
 // Coinbase Commerce webhook
