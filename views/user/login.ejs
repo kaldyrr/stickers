@@ -1,0 +1,16 @@
+<section class="auth">
+  <div class="card auth-card">
+    <div class="card-body">
+      <h2>Sign In</h2>
+      <% if (error) { %><div class="alert"><%= error %></div><% } %>
+      <form method="post" action="/login" class="form">
+        <label>Username</label>
+        <input type="text" name="username" required>
+        <label>Password</label>
+        <input type="password" name="password" required>
+        <button class="btn" type="submit">Login</button>
+      </form>
+      <div class="muted small">Admin? Use <a href="/admin/login">admin login</a>.</div>
+    </div>
+  </div>
+</section>

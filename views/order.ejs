@@ -1,0 +1,15 @@
+<section class="order-view">
+  <div class="card">
+    <div class="card-body">
+      <h2>Order #<%= order.id %></h2>
+      <p>Pack: <strong><%= order.pack_name %></strong></p>
+      <p>Status: <span class="badge status-<%= order.status %>"><%= order.status %></span></p>
+      <p>Total: $<%= (order.price_cents/100).toFixed(2) %></p>
+      <% if (order.status === 'delivered') { %>
+        <a class="btn" href="<%= order.pack_url %>" target="_blank">Open Sticker Pack</a>
+      <% } else { %>
+        <div class="muted">You’ll receive delivery after payment is confirmed.</div>
+      <% } %>
+    </div>
+  </div>
+</section>

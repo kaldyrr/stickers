@@ -1,0 +1,30 @@
+<section>
+  <h1><%= pack ? 'Edit' : 'New' %> Pack</h1>
+  <% if (error) { %><div class="alert"><%= error %></div><% } %>
+  <form method="post" action="<%= pack ? '/admin/packs/' + pack.id + '/edit' : '/admin/packs/new' %>" class="form grid-2">
+    <div class="form-control">
+      <label>Name</label>
+      <input type="text" name="name" value="<%= pack ? pack.name : '' %>" required>
+    </div>
+    <div class="form-control">
+      <label>Price (cents)</label>
+      <input type="number" name="price_cents" min="0" value="<%= pack ? pack.price_cents : 0 %>" required>
+    </div>
+    <div class="form-control">
+      <label>Image URL</label>
+      <input type="url" name="image_url" value="<%= pack ? pack.image_url : '' %>">
+    </div>
+    <div class="form-control">
+      <label>Telegram Pack URL</label>
+      <input type="url" name="pack_url" value="<%= pack ? pack.pack_url : '' %>">
+    </div>
+    <div class="form-control full">
+      <label>Description</label>
+      <textarea name="description" rows="5"><%= pack ? pack.description : '' %></textarea>
+    </div>
+    <div class="form-actions full">
+      <button class="btn" type="submit"><%= pack ? 'Save' : 'Create' %></button>
+      <a class="btn btn-ghost" href="/admin/packs">Cancel</a>
+    </div>
+  </form>
+</section>

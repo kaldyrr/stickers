@@ -1,0 +1,36 @@
+<section>
+  <h1>Orders</h1>
+  <div class="table">
+    <div class="table-row table-head">
+      <div>ID</div>
+      <div>Pack</div>
+      <div>Total</div>
+      <div>Status</div>
+      <div>Buyer</div>
+      <div>Actions</div>
+    </div>
+    <% orders.forEach(o => { %>
+      <div class="table-row">
+        <div>#<%= o.id %></div>
+        <div><%= o.pack_name %></div>
+        <div>$<%= (o.price_cents/100).toFixed(2) %></div>
+        <div><span class="badge status-<%= o.status %>"><%= o.status %></span></div>
+        <div>
+          <div><%= o.buyer_email || '-' %></div>
+          <div><%= o.buyer_telegram || '-' %></div>
+        </div>
+        <div>
+          <form class="inline-form" method="post" action="/admin/orders/<%= o.id %>/status">
+            <select name="status">
+              <option value="pending" <%= o.status==='pending'?'selected':'' %>>pending</option>
+              <option value="paid" <%= o.status==='paid'?'selected':'' %>>paid</option>
+              <option value="delivered" <%= o.status==='delivered'?'selected':'' %>>delivered</option>
+              <option value="cancelled" <%= o.status==='cancelled'?'selected':'' %>>cancelled</option>
+            </select>
+            <button class="btn btn-ghost" type="submit">Update</button>
+          </form>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</section>

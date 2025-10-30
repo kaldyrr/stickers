@@ -1,0 +1,24 @@
+<article class="pack-detail">
+  <div class="detail-media">
+    <img src="<%= pack.image_url %>" alt="<%= pack.name %>">
+  </div>
+  <div class="detail-body">
+    <h1><%= pack.name %></h1>
+    <p class="muted"><%= pack.description %></p>
+    <div class="detail-actions">
+      <a href="<%= pack.pack_url %>" target="_blank" class="btn btn-ghost">Preview in Telegram</a>
+    </div>
+    <div class="buy-box">
+      <div class="price big">$<%= (pack.price_cents/100).toFixed(2) %></div>
+      <form method="post" action="/buy" class="form">
+        <input type="hidden" name="pack_id" value="<%= pack.id %>">
+        <label>Email (for receipt)</label>
+        <input type="email" name="buyer_email" placeholder="you@example.com">
+        <label>Telegram @username</label>
+        <input type="text" name="buyer_telegram" placeholder="@yourhandle">
+        <button class="btn" type="submit">Buy</button>
+      </form>
+      <div class="muted small">You’ll be redirected to your order page.</div>
+    </div>
+  </div>
+</article>

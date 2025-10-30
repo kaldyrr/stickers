@@ -1,0 +1,17 @@
+
+[2025-10-30T08:37:09.496Z] GET /
+SyntaxError: Unexpected identifier 'partials' in D:\Projects!\WEbtest\views\layout.ejs while compiling ejs
+
+If the above error is not helpful, you may want to try EJS-Lint:
+https://github.com/RyanZim/EJS-Lint
+Or, if you meant to create an async function, pass `async: true` as an option.
+    at new Function (<anonymous>)
+    at Template.compile (D:\Projects!\WEbtest\node_modules\ejs\lib\ejs.js:673:12)
+    at Object.compile (D:\Projects!\WEbtest\node_modules\ejs\lib\ejs.js:398:16)
+    at handleCache (D:\Projects!\WEbtest\node_modules\ejs\lib\ejs.js:235:18)
+    at tryHandleCache (D:\Projects!\WEbtest\node_modules\ejs\lib\ejs.js:274:16)
+    at exports.renderFile [as engine] (D:\Projects!\WEbtest\node_modules\ejs\lib\ejs.js:491:10)
+    at View.render (D:\Projects!\WEbtest\node_modules\express\lib\view.js:135:8)
+    at tryRender (D:\Projects!\WEbtest\node_modules\express\lib\application.js:657:10)
+    at Function.render (D:\Projects!\WEbtest\node_modules\express\lib\application.js:609:3)
+    at ServerResponse.render (D:\Projects!\WEbtest\node_modules\express\lib\response.js:1049:7)

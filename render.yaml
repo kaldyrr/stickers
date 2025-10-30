@@ -1,0 +1,23 @@
+databases:
+  - name: sticker-db
+    databaseName: stickers
+    plan: free
+
+services:
+  - type: web
+    name: sticker-shop
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sticker-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
+

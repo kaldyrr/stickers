@@ -1,0 +1,32 @@
+<section class="hero">
+  <div class="hero-content">
+    <h1>Premium Telegram Sticker Packs</h1>
+    <p>Fresh designs, instant delivery after purchase.</p>
+    <div class="hero-actions">
+      <a class="btn" href="#packs">Browse Packs</a>
+      <a class="btn btn-ghost" href="/register">Create Account</a>
+    </div>
+  </div>
+  <div class="hero-art"></div>
+  <div class="hero-gradient"></div>
+  <div class="hero-grid"></div>
+</section>
+
+<section id="packs" class="grid packs-grid">
+  <% packs.forEach(p => { %>
+    <article class="card pack-card">
+      <img class="pack-image" src="<%= p.image_url %>" alt="<%= p.name %>">
+      <div class="card-body">
+        <h3><%= p.name %></h3>
+        <p class="muted"><%= p.description %></p>
+        <div class="card-footer between">
+          <div class="price">$<%= (p.price_cents/100).toFixed(2) %></div>
+          <a class="btn" href="/packs/<%= p.id %>">View</a>
+        </div>
+      </div>
+    </article>
+  <% }) %>
+  <% if (packs.length === 0) { %>
+    <div class="empty">No packs yet.</div>
+  <% } %>
+  </section>

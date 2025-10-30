@@ -1,0 +1,14 @@
+node_modules/
+.env
+server-error.log
+npm-debug.log*
+logs/
+.DS_Store
+*.log
+*.pid
+*.seed
+.vscode/
+.idea/
+dist/
+coverage/
+

@@ -1,0 +1,19 @@
+<header class="site-header">
+  <div class="container header-bar">
+    <a href="/" class="logo">Sticker<span>Shop</span></a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/user">My Orders</a>
+      <% if (currentUser && currentUser.is_admin) { %>
+        <a href="/admin">Admin</a>
+      <% } %>
+      <% if (currentUser) { %>
+        <form method="get" action="/logout" class="inline-form"><button class="btn btn-ghost">Logout</button></form>
+      <% } else { %>
+        <a class="btn btn-ghost" href="/login">Login</a>
+        <a class="btn" href="/register">Sign Up</a>
+      <% } %>
+    </nav>
+  </div>
+</header>
+

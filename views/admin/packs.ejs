@@ -1,0 +1,28 @@
+<section>
+  <div class="between">
+    <h1>Sticker Packs</h1>
+    <a class="btn" href="/admin/packs/new">New Pack</a>
+  </div>
+  <div class="table">
+    <div class="table-row table-head">
+      <div>ID</div>
+      <div>Name</div>
+      <div>Price</div>
+      <div>Actions</div>
+    </div>
+    <% packs.forEach(p => { %>
+      <div class="table-row">
+        <div><%= p.id %></div>
+        <div><%= p.name %></div>
+        <div>$<%= (p.price_cents/100).toFixed(2) %></div>
+        <div class="actions">
+          <a class="btn btn-ghost" href="/packs/<%= p.id %>" target="_blank">View</a>
+          <a class="btn btn-ghost" href="/admin/packs/<%= p.id %>/edit">Edit</a>
+          <form class="inline-form" method="post" action="/admin/packs/<%= p.id %>/delete" onsubmit="return confirm('Delete pack?')">
+            <button class="btn danger" type="submit">Delete</button>
+          </form>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</section>
