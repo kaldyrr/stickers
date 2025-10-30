@@ -13,6 +13,7 @@ let startTelegramPoller;
 try { ({ startTelegramPoller } = require('./src/telegram_poller')); } catch (_) {}
 const { createCharge, verifyWebhookSignature } = require('./src/payments/coinbase');
 const crypto = require('crypto');
+const { getEvmConfig, verifyErc20Payment, amountUnitsFromCents } = require('./src/payments/evm');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -116,7 +117,8 @@ app.get('/order/:id', async (req, res) => {
     [id]
   );
   if (o.rowCount === 0) return res.status(404).send('Not found');
-  res.render('order', { order: o.rows[0] });
+  const evmCfg = getEvmConfig();
+  res.render('order', { order: o.rows[0], evmEnabled: evmCfg.enabled, evmCfg });
 });
 
 // Resume or start payment from order page
@@ -182,6 +184,47 @@ app.post('/webhooks/coinbase', express.raw({ type: 'application/json' }), async 
     // swallow
   }
   res.status(200).send('ok');
+});
+
+// EVM config for client
+app.get('/evm/config', (req, res) => {
+  const cfg = getEvmConfig();
+  if (!cfg.enabled) return res.status(400).json({ enabled: false });
+  res.json({
+    enabled: true,
+    chainId: cfg.chainId,
+    tokenAddress: cfg.tokenAddress,
+    tokenDecimals: cfg.tokenDecimals,
+    merchant: cfg.merchant,
+  });
+});
+
+// Verify EVM payment by tx hash
+app.post('/order/:id/evm/verify', express.json(), async (req, res) => {
+  const id = Number(req.params.id);
+  const { txHash } = req.body || {};
+  if (!txHash) return res.status(400).json({ ok: false, reason: 'missing txHash' });
+  const r = await query('SELECT * FROM orders WHERE id=$1', [id]);
+  if (!r.rowCount) return res.status(404).json({ ok: false, reason: 'order not found' });
+  const order = r.rows[0];
+  try {
+    const vr = await verifyErc20Payment({ order, txHash });
+    if (!vr.ok) return res.status(400).json(vr);
+    await query('UPDATE orders SET status=$1, payment_provider=$2, provider_charge_id=$3, provider_status=$4, updated_at=NOW() WHERE id=$5', [
+      'paid', 'evm', txHash, 'confirmed', id,
+    ]);
+    try {
+      const full = await query(
+        `SELECT o.*, p.name AS pack_name, p.pack_url AS pack_url, u.telegram_chat_id
+         FROM orders o JOIN sticker_packs p ON p.id=o.sticker_pack_id LEFT JOIN users u ON u.id=o.user_id WHERE o.id=$1`,
+        [id]
+      );
+      if (full.rowCount) await sendOrderPaidNotification(full.rows[0]);
+    } catch (_) {}
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, reason: e.message || 'error' });
+  }
 });
 
 app.get('/register', (req, res) => {

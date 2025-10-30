@@ -9,12 +9,67 @@
         <a class="btn" href="<%= order.pack_url %>" target="_blank">Open Sticker Pack</a>
       <% } else { %>
         <% if (order.provider_hosted_url) { %>
-          <a class="btn" href="<%= order.provider_hosted_url %>" target="_blank">Complete Payment</a>
+          <a class="btn" href="<%= order.provider_hosted_url %>" target="_blank">Complete Payment (Hosted)</a>
         <% } else { %>
-          <a class="btn" href="/order/<%= order.id %>/pay">Pay with Crypto</a>
+          <a class="btn" href="/order/<%= order.id %>/pay">Pay with Crypto (Hosted)</a>
+        <% } %>
+        <% if (evmEnabled) { %>
+          <button class="btn btn-ghost" onclick="payWithWallet(<%= order.id %>, <%= order.price_cents %>)">Pay with USDT (Wallet)</button>
         <% } %>
         <div class="muted">Complete payment to unlock your pack link.</div>
       <% } %>
     </div>
   </div>
 </section>
+
+<% if (evmEnabled) { %>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+<script>
+  async function ensureEthereum(){
+    if (!window.ethereum) throw new Error('No wallet found. Install MetaMask.');
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!accounts || !accounts.length) throw new Error('Wallet not connected');
+    return accounts[0];
+  }
+  async function getConfig(){
+    const res = await fetch('/evm/config');
+    if (!res.ok) throw new Error('EVM not configured');
+    return res.json();
+  }
+  async function payWithWallet(orderId, priceCents){
+    const status = (t) => console.log('[pay]', t);
+    try {
+      const cfg = await getConfig();
+      const account = await ensureEthereum();
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const net = await provider.getNetwork();
+      const wanted = BigInt(cfg.chainId);
+      if (net.chainId !== wanted){
+        try {
+          await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x'+cfg.chainId.toString(16) }] });
+        } catch (e) {
+          alert('Please switch network to the required chain');
+          return;
+        }
+      }
+      const signer = await provider.getSigner();
+      const token = new ethers.Contract(cfg.tokenAddress, [
+        'function transfer(address to, uint256 amount) public returns (bool)'
+      ], signer);
+      const decimals = BigInt(cfg.tokenDecimals);
+      const amount = (BigInt(priceCents) * (10n ** decimals)) / 100n; // cents->token units
+      status('sending transfer');
+      const tx = await token.transfer(cfg.merchant, amount);
+      status('waiting confirm');
+      const r = await tx.wait();
+      status('confirming with server');
+      const vr = await fetch(`/order/${orderId}/evm/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ txHash: tx.hash }) });
+      const data = await vr.json();
+      if (!data.ok) throw new Error(data.reason || 'verify failed');
+      window.location.reload();
+    } catch (e) {
+      alert('Payment failed: ' + (e.message || e));
+    }
+  }
+</script>
+<% } %>
