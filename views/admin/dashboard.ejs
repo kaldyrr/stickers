@@ -16,3 +16,67 @@
     <a class="btn btn-ghost" href="/admin/logout">Logout</a>
   </div>
 </section>
+
+<section class="card" style="margin-top:1rem;">
+  <div class="card-body">
+    <div class="between" style="margin-bottom:.5rem;">
+      <h2 style="margin:0;">Send Test Message</h2>
+    </div>
+    <form class="form" onsubmit="return sendHello(event)">
+      <div class="grid-2">
+        <div class="form-control">
+          <label>To (@username or chat id)</label>
+          <input id="toInput" type="text" placeholder="@yourusername or -100123456" value="<%= defaultChat %>">
+        </div>
+        <div class="form-control">
+          <label>Text</label>
+          <input id="textInput" type="text" value="hello">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit">Send</button>
+        <span id="helloResult" class="muted"></span>
+      </div>
+    </form>
+  </div>
+  </section>
+
+<section class="card" style="margin-top:1rem;">
+  <div class="card-body">
+    <div class="between" style="margin-bottom:.5rem;">
+      <h2 style="margin:0;">Recent Logs</h2>
+      <div class="logs-actions">
+        <button class="btn btn-ghost" onclick="loadLogs()">Refresh</button>
+      </div>
+    </div>
+    <pre id="logsBox" class="logs-box">Loading…</pre>
+  </div>
+</section>
+
+<script>
+  async function sendHello(e){
+    e.preventDefault();
+    const to = document.getElementById('toInput').value.trim();
+    const text = document.getElementById('textInput').value.trim() || 'hello';
+    const resEl = document.getElementById('helloResult');
+    resEl.textContent = 'Sending...';
+    try {
+      const res = await fetch(`/admin/telegram/test?to=${encodeURIComponent(to)}&text=${encodeURIComponent(text)}`, { cache: 'no-store' });
+      const t = await res.text();
+      resEl.textContent = res.ok ? `OK: ${t}` : `Error: ${t}`;
+    } catch (e2) {
+      resEl.textContent = 'Failed';
+    }
+    return false;
+  }
+  async function loadLogs(){
+    try {
+      const res = await fetch('/admin/logs?tail=200', { cache: 'no-store' });
+      const text = await res.text();
+      document.getElementById('logsBox').textContent = text || '(no logs)';
+    } catch (e) {
+      document.getElementById('logsBox').textContent = 'Failed to load logs';
+    }
+  }
+  document.addEventListener('DOMContentLoaded', loadLogs);
+</script>

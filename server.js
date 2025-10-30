@@ -174,7 +174,11 @@ app.get('/admin', ensureAdmin, async (req, res) => {
     query('SELECT COUNT(*)::int AS count FROM sticker_packs'),
     query('SELECT COUNT(*)::int AS count FROM orders'),
   ]);
-  res.render('admin/dashboard', { packCount: pc[0].count, orderCount: oc[0].count });
+  res.render('admin/dashboard', {
+    packCount: pc[0].count,
+    orderCount: oc[0].count,
+    defaultChat: process.env.TELEGRAM_DEFAULT_CHAT_ID || '',
+  });
 });
 
 app.get('/admin/packs', ensureAdmin, async (req, res) => {
@@ -258,15 +262,34 @@ app.post('/admin/orders/:id/status', ensureAdmin, async (req, res) => {
 // Lightweight admin endpoint to test Telegram send and parsing
 app.get('/admin/telegram/test', ensureAdmin, async (req, res) => {
   const to = req.query.to || process.env.TELEGRAM_DEFAULT_CHAT_ID;
+  const text = req.query.text || 'Hello from StickerShop!';
   if (!to) return res.status(400).send('Provide ?to=@username or numeric id or set TELEGRAM_DEFAULT_CHAT_ID');
   const parsed = parseChatTarget(to);
-  const text = `Test from StickerShop.\nParsed target = ${parsed.type}:${parsed.value}`;
   try {
     await sendTelegramMessage(parsed.value, text);
     res.send(`Sent to ${parsed.type}:${parsed.value}`);
   } catch (e) {
     res.status(500).send(`Failed to send: ${e.message || e}`);
   }
+});
+
+// Admin logs tail endpoint
+app.get('/admin/logs', ensureAdmin, (req, res) => {
+  const tail = Math.min(parseInt(req.query.tail) || 200, 2000);
+  const errLog = path.join(__dirname, 'server-error.log');
+  let out = '';
+  try {
+    if (fs.existsSync(errLog)) {
+      const data = fs.readFileSync(errLog, 'utf8');
+      const lines = data.split(/\r?\n/);
+      out = lines.slice(-tail).join('\n');
+    } else {
+      out = 'No error logs yet.';
+    }
+  } catch (e) {
+    out = `Failed to read logs: ${e.message}`;
+  }
+  res.type('text/plain').send(out);
 });
 
 // Error handler to capture stack traces in a log file

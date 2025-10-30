@@ -95,3 +95,6 @@ input:focus,textarea:focus,select:focus{border-color:var(--brand)}
 
 .header-bar .btn, .header-bar a{font-weight:600}
 
+/* Admin logs panel */
+.logs-box{background:#0f1629;border:1px solid #273150;border-radius:12px;padding:.8rem;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;max-height:260px;overflow:auto;white-space:pre-wrap;line-height:1.25}
+.logs-actions{display:flex;gap:.5rem}
