@@ -12,6 +12,7 @@ const { sendOrderPaidNotification, parseChatTarget, sendTelegramMessage } = requ
 let startTelegramPoller;
 try { ({ startTelegramPoller } = require('./src/telegram_poller')); } catch (_) {}
 const { createCharge, verifyWebhookSignature } = require('./src/payments/coinbase');
+const { isConfigured: cpIsConfigured, createInvoice: cpCreateInvoice, verifyWebhookSignature: cpVerifySig } = require('./src/payments/cryptopay');
 const crypto = require('crypto');
 const { getEvmConfig, verifyErc20Payment, amountUnitsFromCents } = require('./src/payments/evm');
 
@@ -102,6 +103,17 @@ app.post('/buy', async (req, res) => {
         'coinbase', charge.id, charge.hosted_url, charge.timeline?.[charge.timeline.length - 1]?.status || 'created', orderId,
       ]);
       return res.redirect(charge.hosted_url);
+    } else if (cpIsConfigured()) {
+      const invoice = await cpCreateInvoice({
+        asset: 'USDT',
+        amount: (pack.price_cents / 100).toFixed(2),
+        description: pack.name,
+        payload: String(orderId),
+      });
+      await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
+        'cryptopay', invoice.invoice_id, invoice.invoice_url, invoice.status || 'created', orderId,
+      ]);
+      return res.redirect(invoice.invoice_url);
     }
   } catch (e) {
     console.error('Failed to create payment', e.message || e);
@@ -182,6 +194,39 @@ app.post('/webhooks/coinbase', express.raw({ type: 'application/json' }), async 
     }
   } catch (e) {
     // swallow
+  }
+  res.status(200).send('ok');
+});
+
+// CryptoPay webhook
+app.post('/webhooks/cryptopay', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['x-api-signature'] || req.headers['x-signature'];
+  const raw = req.body instanceof Buffer ? req.body.toString('utf8') : req.body;
+  try {
+    if (!cpVerifySig(raw, sig)) return res.status(400).send('invalid signature');
+  } catch (_) {
+    return res.status(400).send('verification error');
+  }
+  let payload;
+  try { payload = JSON.parse(raw); } catch (_) { return res.status(400).send('bad json'); }
+  const upd = payload || {};
+  if (upd.update_type === 'invoice_paid') {
+    const inv = upd.payload || upd.invoice || upd.result || upd.update_object || {};
+    const orderId = Number(inv?.payload || upd?.invoice_payload || 0);
+    if (orderId) {
+      try {
+        await query('UPDATE orders SET provider_status=$1, updated_at=NOW() WHERE id=$2', ['paid', orderId]);
+        await query('UPDATE orders SET status=$1 WHERE id=$2', ['paid', orderId]);
+        try {
+          const full = await query(
+            `SELECT o.*, p.name AS pack_name, p.pack_url AS pack_url, u.telegram_chat_id
+             FROM orders o JOIN sticker_packs p ON p.id=o.sticker_pack_id LEFT JOIN users u ON u.id=o.user_id WHERE o.id=$1`,
+            [orderId]
+          );
+          if (full.rowCount) await sendOrderPaidNotification(full.rows[0]);
+        } catch (_) {}
+      } catch (_) {}
+    }
   }
   res.status(200).send('ok');
 });
