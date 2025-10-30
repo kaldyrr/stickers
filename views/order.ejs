@@ -5,10 +5,15 @@
       <p>Pack: <strong><%= order.pack_name %></strong></p>
       <p>Status: <span class="badge status-<%= order.status %>"><%= order.status %></span></p>
       <p>Total: $<%= (order.price_cents/100).toFixed(2) %></p>
-      <% if (order.status === 'delivered') { %>
+      <% if (order.status === 'paid' || order.status === 'delivered') { %>
         <a class="btn" href="<%= order.pack_url %>" target="_blank">Open Sticker Pack</a>
       <% } else { %>
-        <div class="muted">You’ll receive delivery after payment is confirmed.</div>
+        <% if (order.provider_hosted_url) { %>
+          <a class="btn" href="<%= order.provider_hosted_url %>" target="_blank">Complete Payment</a>
+        <% } else { %>
+          <a class="btn" href="/order/<%= order.id %>/pay">Pay with Crypto</a>
+        <% } %>
+        <div class="muted">Complete payment to unlock your pack link.</div>
       <% } %>
     </div>
   </div>

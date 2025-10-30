@@ -61,6 +61,17 @@ After deploy:
 
 ## Telegram Notifications
 
+## Crypto Payments (Coinbase Commerce)
+
+- Set in `.env`:
+  - `COINBASE_COMMERCE_API_KEY` (from commerce.coinbase.com)
+  - `COINBASE_COMMERCE_WEBHOOK_SECRET`
+- Flow:
+  - Creating an order redirects to a hosted crypto checkout.
+  - Webhook `POST /webhooks/coinbase` verifies signature and marks order paid on `charge:confirmed`.
+  - Order page then reveals the sticker pack link.
+  - Admin can still update statuses manually.
+
 To notify buyers on Telegram when an order is marked "paid":
 
 - Set `TELEGRAM_BOT_TOKEN` in `.env` to your bot token (from @BotFather).

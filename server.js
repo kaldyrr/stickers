@@ -11,6 +11,8 @@ const { pool, initDb, getUserById, getUserByUsername, createAdminIfMissing, quer
 const { sendOrderPaidNotification, parseChatTarget, sendTelegramMessage } = require('./src/telegram');
 let startTelegramPoller;
 try { ({ startTelegramPoller } = require('./src/telegram_poller')); } catch (_) {}
+const { createCharge, verifyWebhookSignature } = require('./src/payments/coinbase');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,16 +79,33 @@ app.get('/packs/:id', async (req, res) => {
 
 app.post('/buy', async (req, res) => {
   const { pack_id, buyer_email, buyer_telegram } = req.body;
-  const p = await query('SELECT id, price_cents FROM sticker_packs WHERE id=$1', [pack_id]);
+  const p = await query('SELECT * FROM sticker_packs WHERE id=$1', [pack_id]);
   if (p.rowCount === 0) return res.status(400).send('Invalid pack');
-  const price = p.rows[0].price_cents;
+  const pack = p.rows[0];
   const userId = req.session.userId || null;
   const o = await query(
     `INSERT INTO orders (user_id, sticker_pack_id, price_cents, buyer_email, buyer_telegram, status)
      VALUES ($1,$2,$3,$4,$5,'pending') RETURNING id`,
-    [userId, pack_id, price, buyer_email || null, buyer_telegram || null]
+    [userId, pack_id, pack.price_cents, buyer_email || null, buyer_telegram || null]
   );
-  res.redirect(`/order/${o.rows[0].id}`);
+  const orderId = o.rows[0].id;
+  try {
+    if (process.env.COINBASE_COMMERCE_API_KEY) {
+      const charge = await createCharge({
+        name: pack.name,
+        description: pack.description?.slice(0, 120) || 'Sticker pack',
+        amountUsd: pack.price_cents / 100,
+        metadata: { order_id: orderId },
+      });
+      await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
+        'coinbase', charge.id, charge.hosted_url, charge.timeline?.[charge.timeline.length - 1]?.status || 'created', orderId,
+      ]);
+      return res.redirect(charge.hosted_url);
+    }
+  } catch (e) {
+    console.error('Failed to create payment', e.message || e);
+  }
+  res.redirect(`/order/${orderId}`);
 });
 
 app.get('/order/:id', async (req, res) => {
@@ -98,6 +117,71 @@ app.get('/order/:id', async (req, res) => {
   );
   if (o.rowCount === 0) return res.status(404).send('Not found');
   res.render('order', { order: o.rows[0] });
+});
+
+// Resume or start payment from order page
+app.get('/order/:id/pay', async (req, res) => {
+  const id = Number(req.params.id);
+  const o = await query('SELECT o.*, p.name, p.description, p.price_cents FROM orders o JOIN sticker_packs p ON p.id=o.sticker_pack_id WHERE o.id=$1', [id]);
+  if (!o.rowCount) return res.status(404).send('Not found');
+  const order = o.rows[0];
+  if (order.provider_hosted_url) return res.redirect(order.provider_hosted_url);
+  try {
+    if (!process.env.COINBASE_COMMERCE_API_KEY) return res.redirect(`/order/${id}`);
+    const charge = await createCharge({
+      name: order.name,
+      description: (order.description || '').slice(0, 120),
+      amountUsd: order.price_cents / 100,
+      metadata: { order_id: id },
+    });
+    await query('UPDATE orders SET payment_provider=$1, provider_charge_id=$2, provider_hosted_url=$3, provider_status=$4 WHERE id=$5', [
+      'coinbase', charge.id, charge.hosted_url, charge.timeline?.[charge.timeline.length - 1]?.status || 'created', id,
+    ]);
+    return res.redirect(charge.hosted_url);
+  } catch (e) {
+    return res.redirect(`/order/${id}`);
+  }
+});
+
+// Coinbase Commerce webhook
+app.post('/webhooks/coinbase', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['x-cc-webhook-signature'];
+  const raw = req.body instanceof Buffer ? req.body.toString('utf8') : req.body;
+  try {
+    if (!sig || !verifyWebhookSignature(raw, sig)) {
+      return res.status(400).send('invalid signature');
+    }
+  } catch (e) {
+    return res.status(400).send('verification error');
+  }
+  let payload;
+  try { payload = JSON.parse(raw); } catch (_) { return res.status(400).send('bad json'); }
+  const ev = payload?.event;
+  const data = ev?.data;
+  const chargeId = data?.id;
+  const status = data?.timeline?.[data.timeline.length - 1]?.status || 'unknown';
+  const orderId = data?.metadata?.order_id ? Number(data.metadata.order_id) : null;
+  if (!orderId) return res.status(200).send('ok');
+  try {
+    await query('UPDATE orders SET provider_status=$1, provider_charge_id=$2, provider_hosted_url=$3, updated_at=NOW() WHERE id=$4', [
+      status, chargeId || null, data?.hosted_url || null, orderId,
+    ]);
+    if (ev?.type === 'charge:confirmed') {
+      // Mark paid and deliver immediately
+      await query('UPDATE orders SET status=$1, updated_at=NOW() WHERE id=$2', ['paid', orderId]);
+      try {
+        const full = await query(
+          `SELECT o.*, p.name AS pack_name, p.pack_url AS pack_url, u.telegram_chat_id
+           FROM orders o JOIN sticker_packs p ON p.id=o.sticker_pack_id LEFT JOIN users u ON u.id=o.user_id WHERE o.id=$1`,
+          [orderId]
+        );
+        if (full.rowCount) await sendOrderPaidNotification(full.rows[0]);
+      } catch (_) {}
+    }
+  } catch (e) {
+    // swallow
+  }
+  res.status(200).send('ok');
 });
 
 app.get('/register', (req, res) => {

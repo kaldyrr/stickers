@@ -58,6 +58,10 @@ async function initDb() {
     buyer_email TEXT,
     buyer_telegram TEXT,
     buyer_chat_id TEXT,
+    payment_provider TEXT,
+    provider_charge_id TEXT,
+    provider_status TEXT,
+    provider_hosted_url TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -66,6 +70,10 @@ async function initDb() {
   // Best-effort migrations for existing DBs
   try { await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT`); } catch (_) {}
   try { await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS buyer_chat_id TEXT`); } catch (_) {}
+  try { await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_provider TEXT`); } catch (_) {}
+  try { await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider_charge_id TEXT`); } catch (_) {}
+  try { await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider_status TEXT`); } catch (_) {}
+  try { await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider_hosted_url TEXT`); } catch (_) {}
 
   const packs = await query('SELECT COUNT(*)::int AS c FROM sticker_packs');
   if (packs.rows[0].c === 0) {
